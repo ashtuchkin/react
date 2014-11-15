@@ -37,6 +37,8 @@ var ReactInjection = require('ReactInjection');
 var ReactInstanceHandles = require('ReactInstanceHandles');
 var ReactMount = require('ReactMount');
 var SelectEventPlugin = require('SelectEventPlugin');
+var TapEventPlugin = require('TapEventPlugin');
+var ResponderEventPlugin = require('ResponderEventPlugin');
 var ServerReactRootIndex = require('ServerReactRootIndex');
 var SimpleEventPlugin = require('SimpleEventPlugin');
 var SVGDOMPropertyConfig = require('SVGDOMPropertyConfig');
@@ -66,6 +68,8 @@ function inject() {
     CompositionEventPlugin: CompositionEventPlugin,
     MobileSafariClickEventPlugin: MobileSafariClickEventPlugin,
     SelectEventPlugin: SelectEventPlugin,
+    ResponderEventPlugin: ResponderEventPlugin,
+    TapEventPlugin: TapEventPlugin,
     BeforeInputEventPlugin: BeforeInputEventPlugin
   });
 
