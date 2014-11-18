@@ -26,20 +26,6 @@ var onlyChild = require('onlyChild');
 var TICK = 17;
 var NO_EVENT_TIMEOUT = 5000;
 
-var noEventListener = null;
-
-
-if (__DEV__) {
-  noEventListener = function() {
-    console.warn(
-      'transition(): tried to perform an animation without ' +
-      'an animationend or transitionend event after timeout (' +
-      NO_EVENT_TIMEOUT + 'ms). You should either disable this ' +
-      'transition in JS or add a CSS animation/transition.'
-    );
-  };
-}
-
 var ReactCSSTransitionGroupChild = React.createClass({
   displayName: 'ReactCSSTransitionGroupChild',
 
@@ -47,36 +33,43 @@ var ReactCSSTransitionGroupChild = React.createClass({
     var node = this.getDOMNode();
     var className = this.props.name + '-' + animationType;
     var activeClassName = className + '-active';
-    var noEventTimeout = null;
+    var endEventTimeout = null;
 
     var endListener = function(e) {
       if (e && e.target !== node) {
         return;
       }
-      if (__DEV__) {
-        clearTimeout(noEventTimeout);
+      if (!this.isMounted()) {
+        return;
       }
 
       CSSCore.removeClass(node, className);
       CSSCore.removeClass(node, activeClassName);
 
       ReactTransitionEvents.removeEndEventListener(node, endListener);
+      clearTimeout(endEventTimeout);
+
+      // If transition is not yet started (timeout, etc), don't start it. It might
+      // leave class on the node. Warning, this doesn't work with multiple animations
+      // at the same time.
+      if (this.timeout) {
+        clearTimeout(this.timeout);
+        this.classNameQueue.length = 0;
+        this.timeout = null;
+      }
 
       // Usually this optional callback is used for informing an owner of
       // a leave animation and telling it to remove the child.
       finishCallback && finishCallback();
-    };
+    }.bind(this);
 
     ReactTransitionEvents.addEndEventListener(node, endListener);
+    endEventTimeout = setTimeout(endListener, NO_EVENT_TIMEOUT);
 
     CSSCore.addClass(node, className);
 
     // Need to do this to actually trigger a transition.
     this.queueClass(activeClassName);
-
-    if (__DEV__) {
-      noEventTimeout = setTimeout(noEventListener, NO_EVENT_TIMEOUT);
-    }
   },
 
   queueClass: function(className) {
@@ -104,6 +97,7 @@ var ReactCSSTransitionGroupChild = React.createClass({
   componentWillUnmount: function() {
     if (this.timeout) {
       clearTimeout(this.timeout);
+      this.timeout = null;
     }
   },
 
