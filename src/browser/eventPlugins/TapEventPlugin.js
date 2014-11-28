@@ -41,8 +41,13 @@ var isTouch = function(topLevelType) {
  */
 var tapMoveThreshold = 10;
 var ignoreMouseThreshold = 750;
+var tapDelay = 200; // Minimum time between tap events
+var tapMaxTime = 600; // Max time between start and end of touch
 var startCoords = {x: null, y: null};
+var startTime = 0;
 var lastTouchEvent = null;
+var lastTapTime = 0;
+var trackingTouchEvent = false;
 
 var Axis = {
   x: {page: 'pageX', client: 'clientX', envScroll: 'currentPageScrollLeft'},
@@ -66,6 +71,11 @@ function getDistance(coords, nativeEvent) {
     Math.pow(pageX - coords.x, 2) + Math.pow(pageY - coords.y, 2),
     0.5
   );
+}
+
+function touchWithinBoundaries(nativeEvent) {
+  return getDistance(startCoords, nativeEvent) < tapMoveThreshold && 
+           (nativeEvent.timeStamp - startTime) < tapMaxTime;
 }
 
 var dependencies = [
@@ -114,34 +124,48 @@ var TapEventPlugin = {
       topLevelTarget,
       topLevelTargetID,
       nativeEvent) {
+    
+    if (nativeEvent.timeStamp == null)
+      nativeEvent.timeStamp = +new Date();
 
     if (isTouch(topLevelType)) {
       lastTouchEvent = nativeEvent.timeStamp;
+      if (nativeEvent.timeStamp - lastTapTime < tapDelay) // Skip 'phantom' clicks
+        return null;
     } else {
       if (lastTouchEvent && (nativeEvent.timeStamp - lastTouchEvent) < ignoreMouseThreshold) {
         return null;
       }
     }
 
-    if (!isStartish(topLevelType) && !isEndish(topLevelType)) {
-      return null;
-    }
     var event = null;
-    var distance = getDistance(startCoords, nativeEvent);
-    if (isEndish(topLevelType) && distance < tapMoveThreshold) {
-      event = SyntheticUIEvent.getPooled(
-        eventTypes.touchTap,
-        topLevelTargetID,
-        nativeEvent
-      );
-    }
     if (isStartish(topLevelType)) {
       startCoords.x = getAxisCoordOfEvent(Axis.x, nativeEvent);
       startCoords.y = getAxisCoordOfEvent(Axis.y, nativeEvent);
+      startTime = nativeEvent.timeStamp;
+      trackingTouchEvent = true;
+
     } else if (isEndish(topLevelType)) {
+      if (trackingTouchEvent && touchWithinBoundaries(nativeEvent)) {
+        event = SyntheticUIEvent.getPooled(
+          eventTypes.touchTap,
+          topLevelTargetID,
+          nativeEvent
+        );
+        lastTapTime = nativeEvent.timeStamp;
+      }
+
       startCoords.x = 0;
       startCoords.y = 0;
+      trackingTouchEvent = false;
+
+    } else { // Move-ish
+      // Cancel tracking if we're outside the boundary.
+      if (trackingTouchEvent && !touchWithinBoundaries(nativeEvent)) {
+        trackingTouchEvent = false;
+      }
     }
+
     EventPropagators.accumulateTwoPhaseDispatches(event);
     return event;
   }
